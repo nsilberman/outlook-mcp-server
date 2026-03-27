@@ -243,3 +243,74 @@ def set_email_categories_tool(email_number: int, categories: str) -> Dict[str, A
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error setting categories: {str(e)}"}
+
+
+def get_attachment_info_tool(email_number: int) -> Dict[str, Any]:
+    """Get detailed information about all attachments on an email, including page counts
+
+    Returns each attachment's name, size, index, and page count when available.
+    Page counts are supported for PDF, PPTX, DOCX, and image files (images = 1 page).
+    Requires optional dependencies: pypdf, python-pptx, python-docx.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+
+    Returns:
+        dict: Response containing attachment details as JSON
+        {
+            "type": "json",
+            "data": {
+                "attachments": [
+                    {"index": 1, "name": "report.pdf", "size": 102400, "pages": 12},
+                    {"index": 2, "name": "photo.png", "size": 54321, "pages": 1}
+                ]
+            }
+        }
+
+    Note:
+        Requires emails to be loaded first via list_recent_emails or search_emails.
+    """
+    if not isinstance(email_number, int) or email_number < 1:
+        raise ValidationError("Email number must be a positive integer")
+
+    try:
+        from ..backend.outlook_session.email_operations import get_attachment_info
+        result = get_attachment_info(email_number)
+        if result["success"]:
+            return {"type": "json", "data": {"attachments": result["attachments"]}}
+        return {"type": "text", "text": f"Error: {result['error']}"}
+    except Exception as e:
+        return {"type": "text", "text": f"Error getting attachment info: {str(e)}"}
+
+
+def save_attachment_tool(email_number: int, attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Save an attachment from an email to disk
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+        attachment_index: 1-based index of the attachment (use get_attachment_info_tool to see indices)
+        destination_dir: Optional directory path to save the file (defaults to system temp directory)
+
+    Returns:
+        dict: Response containing the saved file path
+        {
+            "type": "text",
+            "text": "Saved 'report.pdf' (102400 bytes) to /tmp/report.pdf"
+        }
+
+    Note:
+        Requires emails to be loaded first via list_recent_emails or search_emails.
+    """
+    if not isinstance(email_number, int) or email_number < 1:
+        raise ValidationError("Email number must be a positive integer")
+    if not isinstance(attachment_index, int) or attachment_index < 1:
+        raise ValidationError("Attachment index must be a positive integer")
+
+    try:
+        from ..backend.outlook_session.email_operations import save_attachment
+        result = save_attachment(email_number, attachment_index, destination_dir)
+        if result["success"]:
+            return {"type": "text", "text": f"Saved '{result['file_name']}' ({result['size']} bytes) to {result['file_path']}"}
+        return {"type": "text", "text": f"Error: {result['error']}"}
+    except Exception as e:
+        return {"type": "text", "text": f"Error saving attachment: {str(e)}"}

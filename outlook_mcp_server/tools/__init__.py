@@ -38,6 +38,8 @@ from .email_operations import (
     delete_email_by_number_tool,
     get_email_categories_tool,
     set_email_categories_tool,
+    get_attachment_info_tool,
+    save_attachment_tool,
 )
 
 from .batch_operations import batch_forward_email_tool
@@ -70,6 +72,8 @@ __all__ = [
     'delete_email_by_number_tool',
     'get_email_categories_tool',
     'set_email_categories_tool',
+    'get_attachment_info_tool',
+    'save_attachment_tool',
 
     # Batch operations
     'batch_forward_email_tool',
