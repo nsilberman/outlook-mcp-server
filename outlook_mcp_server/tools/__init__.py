@@ -36,6 +36,8 @@ from .email_operations import (
     create_draft_tool,
     move_email_tool,
     delete_email_by_number_tool,
+    get_email_categories_tool,
+    set_email_categories_tool,
 )
 
 from .batch_operations import batch_forward_email_tool
@@ -66,7 +68,9 @@ __all__ = [
     'create_draft_tool',
     'move_email_tool',
     'delete_email_by_number_tool',
-    
+    'get_email_categories_tool',
+    'set_email_categories_tool',
+
     # Batch operations
     'batch_forward_email_tool',
 ]

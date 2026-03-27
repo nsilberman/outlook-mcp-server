@@ -30,6 +30,8 @@ from . import (
     create_draft_tool,
     move_email_tool,
     delete_email_by_number_tool,
+    get_email_categories_tool,
+    set_email_categories_tool,
     
     # Batch operations
     batch_forward_email_tool,
@@ -67,6 +69,8 @@ def register_all_tools(mcp_server: FastMCP) -> None:
     mcp_server.tool(create_draft_tool)
     mcp_server.tool(move_email_tool)
     mcp_server.tool(delete_email_by_number_tool)
-    
+    mcp_server.tool(get_email_categories_tool)
+    mcp_server.tool(set_email_categories_tool)
+
     # Batch operations
     mcp_server.tool(batch_forward_email_tool)

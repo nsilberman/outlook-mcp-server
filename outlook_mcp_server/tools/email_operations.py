@@ -184,3 +184,62 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error creating draft: {str(e)}"}
+
+
+def get_email_categories_tool(email_number: int) -> Dict[str, Any]:
+    """Get the categories assigned to an email
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+
+    Returns:
+        dict: Response containing the comma-separated category names
+        {
+            "type": "text",
+            "text": "Category1, Category2"
+        }
+
+    Note:
+        Requires emails to be loaded first via list_recent_emails or search_emails.
+    """
+    if not isinstance(email_number, int) or email_number < 1:
+        raise ValidationError("Email number must be a positive integer")
+
+    try:
+        from ..backend.outlook_session.email_operations import get_email_categories
+        result = get_email_categories(email_number)
+        return {"type": "text", "text": result}
+    except Exception as e:
+        return {"type": "text", "text": f"Error getting categories: {str(e)}"}
+
+
+def set_email_categories_tool(email_number: int, categories: str) -> Dict[str, Any]:
+    """Set or replace the categories on an email
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+        categories: Comma-separated category names to assign (e.g. "Important, Follow-up"). Use empty string to clear all categories.
+
+    Returns:
+        dict: Response containing confirmation message
+        {
+            "type": "text",
+            "text": "Categories set to: Important, Follow-up"
+        }
+
+    Note:
+        Requires emails to be loaded first via list_recent_emails or search_emails.
+        This replaces all existing categories. To add a category, first read existing
+        categories with get_email_categories_tool, then include them in the new value.
+    """
+    if not isinstance(email_number, int) or email_number < 1:
+        raise ValidationError("Email number must be a positive integer")
+    if not isinstance(categories, str):
+        raise ValidationError("Categories must be a string")
+
+    try:
+        from ..backend.outlook_session.email_operations import set_email_categories
+        result = set_email_categories(email_number, categories)
+        return {"type": "text", "text": result}
+    except Exception as e:
+        return {"type": "text", "text": f"Error setting categories: {str(e)}"}

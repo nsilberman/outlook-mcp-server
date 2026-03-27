@@ -168,4 +168,80 @@ def delete_email_by_number(email_number: int) -> str:
         return email_ops.delete_email_by_number(email_number)
 
 
+def get_email_categories(email_number: int) -> str:
+    """Get the categories assigned to an email.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+
+    Returns:
+        Comma-separated category names, or a message if none assigned
+    """
+    if email_number < 1:
+        return f"Error: Invalid email number: {email_number}"
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return f"Error: Email #{email_number} not found in cache"
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return f"Error: Email #{email_number} has no entry ID"
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return f"Error: Could not find email with entry ID {entry_id}"
+
+            categories = getattr(item, "Categories", "")
+            if not categories or not categories.strip():
+                return "No categories assigned"
+
+            logger.info(f"Categories for email #{email_number}: {categories}")
+            return categories
+        except Exception as e:
+            error_msg = f"Error getting categories: {e}"
+            logger.error(error_msg)
+            return f"Error: {error_msg}"
+
+
+def set_email_categories(email_number: int, categories: str) -> str:
+    """Set or replace the categories on an email.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+        categories: Comma-separated category names (empty string to clear)
+
+    Returns:
+        Success or error message
+    """
+    if email_number < 1:
+        return f"Error: Invalid email number: {email_number}"
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return f"Error: Email #{email_number} not found in cache"
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return f"Error: Email #{email_number} has no entry ID"
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return f"Error: Could not find email with entry ID {entry_id}"
+
+            item.Categories = categories
+            item.Save()
+
+            if categories.strip():
+                logger.info(f"Set categories for email #{email_number}: {categories}")
+                return f"Categories set to: {categories}"
+            else:
+                logger.info(f"Cleared categories for email #{email_number}")
+                return "Categories cleared"
+        except Exception as e:
+            error_msg = f"Error setting categories: {e}"
+            logger.error(error_msg)
+            return f"Error: {error_msg}"
 
