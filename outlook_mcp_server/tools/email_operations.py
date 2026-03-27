@@ -1,7 +1,7 @@
 """Email operations tools for Outlook MCP Server."""
 
 from typing import Dict, Any, Union, List, Optional
-from ..backend.email_composition import reply_to_email_by_number, compose_email
+from ..backend.email_composition import reply_to_email_by_number, compose_email, create_draft
 from ..backend.outlook_session import OutlookSessionManager
 from ..backend.validation import ValidationError
 
@@ -147,3 +147,40 @@ def delete_email_by_number_tool(email_number: int) -> Dict[str, Any]:
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error deleting email: {str(e)}"}
+
+
+def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None, html: bool = False) -> Dict[str, Any]:
+    """Create a draft email without sending it
+
+    Args:
+        recipient_email: Email address(es) of the recipient(s) - can be single email or semicolon-separated list
+        subject: Subject line of the email
+        body: Main content of the email
+        cc_email: Optional CC email address(es) - can be single email or semicolon-separated list
+        html: If True, body is treated as HTML (default: False)
+
+    Returns:
+        dict: Response containing confirmation message
+        {
+            "type": "text",
+            "text": "Confirmation message here"
+        }
+    """
+    if not recipient_email or not isinstance(recipient_email, str):
+        raise ValidationError("Recipient email must be a non-empty string")
+    if not subject or not isinstance(subject, str):
+        raise ValidationError("Subject must be a non-empty string")
+    if not body or not isinstance(body, str):
+        raise ValidationError("Body must be a non-empty string")
+
+    try:
+        # Parse semicolon-separated email addresses into lists
+        to_recipients = [email.strip() for email in recipient_email.split(';') if email.strip()]
+        cc_recipients = None
+        if cc_email:
+            cc_recipients = [email.strip() for email in cc_email.split(';') if email.strip()]
+
+        result = create_draft(to_recipients, subject, body, cc_recipients, html)
+        return {"type": "text", "text": result}
+    except Exception as e:
+        return {"type": "text", "text": f"Error creating draft: {str(e)}"}
