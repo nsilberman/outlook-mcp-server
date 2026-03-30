@@ -33,8 +33,13 @@ from .viewing_tools import (
 from .email_operations import (
     reply_to_email_by_number_tool,
     compose_email_tool,
+    create_draft_tool,
     move_email_tool,
     delete_email_by_number_tool,
+    get_email_categories_tool,
+    set_email_categories_tool,
+    get_attachment_info_tool,
+    save_attachment_tool,
 )
 
 from .batch_operations import batch_forward_email_tool
@@ -62,9 +67,14 @@ __all__ = [
     # Email operations
     'reply_to_email_by_number_tool',
     'compose_email_tool',
+    'create_draft_tool',
     'move_email_tool',
     'delete_email_by_number_tool',
-    
+    'get_email_categories_tool',
+    'set_email_categories_tool',
+    'get_attachment_info_tool',
+    'save_attachment_tool',
+
     # Batch operations
     'batch_forward_email_tool',
 ]

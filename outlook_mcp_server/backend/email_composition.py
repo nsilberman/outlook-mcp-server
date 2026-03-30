@@ -370,3 +370,91 @@ def compose_email(
         except Exception as e:
             logger.error(f"Error composing email: {e}")
             return f"Error composing email: {str(e)}"
+
+
+def create_draft(
+    to_recipients: List[str],
+    subject: str,
+    body: str,
+    cc_recipients: Optional[List[str]] = None,
+    html: bool = False,
+) -> str:
+    """
+    Create a draft email in Outlook without sending it.
+
+    Args:
+        to_recipients: List of recipient email addresses
+        subject: Email subject line
+        body: Email body content
+        cc_recipients: Optional list of CC email addresses
+        html: If True, body is treated as HTML (default: False)
+
+    Returns:
+        str: Success/error message
+    """
+    # Validate inputs using Pydantic
+    try:
+        params = EmailComposeParams(
+            recipient_email=to_recipients[0] if to_recipients else "",
+            subject=subject,
+            body=body,
+            cc_email=cc_recipients[0] if cc_recipients else None,
+        )
+    except Exception as e:
+        logger.error(f"Validation error in create_draft: {e}")
+        raise ValueError(f"Invalid parameters: {e}")
+
+    # Additional validation for list
+    if not to_recipients or not isinstance(to_recipients, list):
+        raise ValueError("To recipients must be a non-empty list")
+
+    if not all(isinstance(email, str) and email.strip() for email in to_recipients):
+        raise ValueError("All recipient email addresses must be non-empty strings")
+
+    if cc_recipients is not None:
+        if not isinstance(cc_recipients, list):
+            raise ValueError("CC recipients must be a list or None")
+        if not all(isinstance(email, str) and email.strip() for email in cc_recipients):
+            raise ValueError("All CC email addresses must be non-empty strings")
+
+    with OutlookSessionManager() as session:
+        try:
+            # Encode all components safely
+            encoded_to = [
+                safe_encode_text(recipient, "to_recipient").strip() for recipient in to_recipients
+            ]
+            subject_safe = safe_encode_text(subject, "subject")
+            body_safe = safe_encode_text(body, "body")
+
+            encoded_cc = []
+            if cc_recipients:
+                encoded_cc = [
+                    safe_encode_text(recipient, "cc_recipient").strip()
+                    for recipient in cc_recipients
+                ]
+
+            # Create the email item
+            mail = session.outlook.CreateItem(OutlookConstants.OL_MAIL_ITEM)
+            mail.To = "; ".join(encoded_to)
+            mail.Subject = subject_safe
+
+            if cc_recipients:
+                mail.CC = "; ".join(encoded_cc)
+
+            try:
+                if html:
+                    mail.HTMLBody = body_safe
+                else:
+                    mail.Body = body_safe
+            except Exception as e:
+                logger.warning(f"Failed to set email body format, using plain text: {e}")
+                mail.Body = body_safe
+
+            # Save as draft instead of sending
+            mail.Save()
+            logger.info(f"Draft created successfully for {len(to_recipients)} recipients")
+            return "Draft created successfully"
+
+        except Exception as e:
+            logger.error(f"Error creating draft: {e}")
+            return f"Error creating draft: {str(e)}"

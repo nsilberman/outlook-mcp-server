@@ -276,6 +276,17 @@ Try these with your AI assistant:
 - `get_email_by_number_tool(email_number)` - Get full email details
 - `reply_to_email_by_number_tool(email_number, "reply text")` - Reply to email
 - `compose_email_tool("recipient@email.com", "subject", "body")` - Send new email
+- `create_draft_tool("recipient@email.com", "subject", "body")` - Create a draft without sending
+
+### Categories
+- `get_email_categories_tool(email_number)` - Get categories assigned to an email
+- `set_email_categories_tool(email_number, "Category1, Category2")` - Set or replace categories
+
+### Attachments
+- `get_attachment_info_tool(email_number)` - List attachments with name, size, and page count
+- `save_attachment_tool(email_number, attachment_index)` - Save an attachment to disk
+
+> **Page counts**: PDF, PPTX, DOCX, and image files (images = 1 page). Requires optional dependencies: `pip install pypdf python-pptx python-docx`
 
 ### Folder Operations
 - `get_folder_list_tool()` - **Always use first** to see available folders

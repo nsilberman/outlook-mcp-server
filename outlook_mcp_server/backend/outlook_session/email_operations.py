@@ -6,6 +6,8 @@ managing email policies, and retrieving email details.
 """
 
 # Type imports
+import os
+import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 # Local application imports
@@ -168,4 +170,248 @@ def delete_email_by_number(email_number: int) -> str:
         return email_ops.delete_email_by_number(email_number)
 
 
+def get_email_categories(email_number: int) -> str:
+    """Get the categories assigned to an email.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+
+    Returns:
+        Comma-separated category names, or a message if none assigned
+    """
+    if email_number < 1:
+        return f"Error: Invalid email number: {email_number}"
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return f"Error: Email #{email_number} not found in cache"
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return f"Error: Email #{email_number} has no entry ID"
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return f"Error: Could not find email with entry ID {entry_id}"
+
+            categories = getattr(item, "Categories", "")
+            if not categories or not categories.strip():
+                return "No categories assigned"
+
+            logger.info(f"Categories for email #{email_number}: {categories}")
+            return categories
+        except Exception as e:
+            error_msg = f"Error getting categories: {e}"
+            logger.error(error_msg)
+            return f"Error: {error_msg}"
+
+
+def set_email_categories(email_number: int, categories: str) -> str:
+    """Set or replace the categories on an email.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+        categories: Comma-separated category names (empty string to clear)
+
+    Returns:
+        Success or error message
+    """
+    if email_number < 1:
+        return f"Error: Invalid email number: {email_number}"
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return f"Error: Email #{email_number} not found in cache"
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return f"Error: Email #{email_number} has no entry ID"
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return f"Error: Could not find email with entry ID {entry_id}"
+
+            item.Categories = categories
+            item.Save()
+
+            if categories.strip():
+                logger.info(f"Set categories for email #{email_number}: {categories}")
+                return f"Categories set to: {categories}"
+            else:
+                logger.info(f"Cleared categories for email #{email_number}")
+                return "Categories cleared"
+        except Exception as e:
+            error_msg = f"Error setting categories: {e}"
+            logger.error(error_msg)
+            return f"Error: {error_msg}"
+
+
+# Image file extensions (count as 1 page)
+_IMAGE_EXTENSIONS = frozenset(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif', '.webp', '.svg', '.ico'))
+
+
+def _count_pages(file_path: str) -> Optional[int]:
+    """Count pages in a file. Returns None if format is unsupported.
+
+    Supported: PDF (via pypdf), PPTX (via python-pptx), DOCX (via python-docx),
+    and image files (always 1 page).
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+
+    if ext in _IMAGE_EXTENSIONS:
+        return 1
+
+    if ext == '.pdf':
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(file_path)
+            return len(reader.pages)
+        except ImportError:
+            logger.warning("pypdf not installed — cannot count PDF pages")
+            return None
+        except Exception as e:
+            logger.error(f"Error counting PDF pages: {e}")
+            return None
+
+    if ext == '.pptx':
+        try:
+            from pptx import Presentation
+            prs = Presentation(file_path)
+            return len(prs.slides)
+        except ImportError:
+            logger.warning("python-pptx not installed — cannot count PPTX slides")
+            return None
+        except Exception as e:
+            logger.error(f"Error counting PPTX slides: {e}")
+            return None
+
+    if ext in ('.docx',):
+        try:
+            from docx import Document
+            doc = Document(file_path)
+            # DOCX has no native page count; estimate from section breaks + 1
+            return len(doc.sections)
+        except ImportError:
+            logger.warning("python-docx not installed — cannot count DOCX pages")
+            return None
+        except Exception as e:
+            logger.error(f"Error counting DOCX pages: {e}")
+            return None
+
+    return None
+
+
+def save_attachment(email_number: int, attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
+    """Save an attachment from a cached email to disk.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+        attachment_index: 1-based index of the attachment on the email
+        destination_dir: Directory to save into (defaults to system temp dir)
+
+    Returns:
+        Dict with keys: success, file_path, file_name, size, error
+    """
+    if email_number < 1:
+        return {"success": False, "error": f"Invalid email number: {email_number}"}
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return {"success": False, "error": f"Email #{email_number} not found in cache"}
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return {"success": False, "error": f"Email #{email_number} has no entry ID"}
+
+    save_dir = destination_dir or tempfile.gettempdir()
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return {"success": False, "error": f"Could not find email with entry ID {entry_id}"}
+
+            if not hasattr(item, 'Attachments') or not item.Attachments or item.Attachments.Count < attachment_index:
+                return {"success": False, "error": f"Attachment #{attachment_index} not found (email has {getattr(item.Attachments, 'Count', 0)} attachments)"}
+
+            attachment = item.Attachments.Item(attachment_index)
+            file_name = getattr(attachment, 'FileName', None) or getattr(attachment, 'DisplayName', 'attachment')
+            file_path = os.path.join(save_dir, file_name)
+            attachment.SaveAsFile(file_path)
+
+            size = os.path.getsize(file_path)
+            logger.info(f"Saved attachment '{file_name}' from email #{email_number} to {file_path}")
+            return {"success": True, "file_path": file_path, "file_name": file_name, "size": size}
+        except Exception as e:
+            error_msg = f"Error saving attachment: {e}"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
+
+
+def get_attachment_info(email_number: int) -> Dict[str, Any]:
+    """Get detailed info about all attachments on a cached email, including page counts.
+
+    Saves each attachment to a temp file, counts pages, then cleans up.
+
+    Args:
+        email_number: The number of the email in the cache (1-based)
+
+    Returns:
+        Dict with keys: success, attachments (list of dicts with name, size, pages), error
+    """
+    if email_number < 1:
+        return {"success": False, "error": f"Invalid email number: {email_number}"}
+
+    if not email_cache_order or email_number > len(email_cache_order):
+        return {"success": False, "error": f"Email #{email_number} not found in cache"}
+
+    entry_id = email_cache_order[email_number - 1]
+    if not entry_id:
+        return {"success": False, "error": f"Email #{email_number} has no entry ID"}
+
+    with OutlookSessionManager() as session:
+        try:
+            item = session.namespace.GetItemFromID(entry_id)
+            if not item:
+                return {"success": False, "error": f"Could not find email with entry ID {entry_id}"}
+
+            if not hasattr(item, 'Attachments') or not item.Attachments or item.Attachments.Count == 0:
+                return {"success": True, "attachments": []}
+
+            results = []
+            for i in range(1, item.Attachments.Count + 1):
+                attachment = item.Attachments.Item(i)
+                file_name = getattr(attachment, 'FileName', None) or getattr(attachment, 'DisplayName', 'attachment')
+                size = getattr(attachment, 'Size', 0)
+
+                # Try to count pages by saving to temp file
+                pages = None
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext in _IMAGE_EXTENSIONS:
+                    pages = 1
+                elif ext in ('.pdf', '.pptx', '.docx'):
+                    tmp_path = None
+                    try:
+                        tmp_fd, tmp_path = tempfile.mkstemp(suffix=ext)
+                        os.close(tmp_fd)
+                        attachment.SaveAsFile(tmp_path)
+                        pages = _count_pages(tmp_path)
+                    except Exception as e:
+                        logger.debug(f"Could not count pages for {file_name}: {e}")
+                    finally:
+                        if tmp_path and os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+
+                info = {"index": i, "name": file_name, "size": size}
+                if pages is not None:
+                    info["pages"] = pages
+                results.append(info)
+
+            logger.info(f"Extracted info for {len(results)} attachments on email #{email_number}")
+            return {"success": True, "attachments": results}
+        except Exception as e:
+            error_msg = f"Error getting attachment info: {e}"
+            logger.error(error_msg)
+            return {"success": False, "error": error_msg}
 
