@@ -378,6 +378,7 @@ def create_draft(
     body: str,
     cc_recipients: Optional[List[str]] = None,
     html: bool = False,
+    attachments: Optional[List[str]] = None,
 ) -> str:
     """
     Create a draft email in Outlook without sending it.
@@ -388,6 +389,7 @@ def create_draft(
         body: Email body content
         cc_recipients: Optional list of CC email addresses
         html: If True, body is treated as HTML (default: False)
+        attachments: Optional list of absolute file paths to attach
 
     Returns:
         str: Success/error message
@@ -450,10 +452,20 @@ def create_draft(
                 logger.warning(f"Failed to set email body format, using plain text: {e}")
                 mail.Body = body_safe
 
+            # Attach files if provided
+            if attachments:
+                import os
+                for file_path in attachments:
+                    if not os.path.isfile(file_path):
+                        return f"Error: attachment not found: {file_path}"
+                    mail.Attachments.Add(file_path)
+                    logger.info(f"Attached: {os.path.basename(file_path)}")
+
             # Save as draft instead of sending
             mail.Save()
-            logger.info(f"Draft created successfully for {len(to_recipients)} recipients")
-            return "Draft created successfully"
+            attachment_count = len(attachments) if attachments else 0
+            logger.info(f"Draft created successfully for {len(to_recipients)} recipients with {attachment_count} attachment(s)")
+            return f"Draft created successfully with {attachment_count} attachment(s)" if attachment_count else "Draft created successfully"
 
         except Exception as e:
             logger.error(f"Error creating draft: {e}")
