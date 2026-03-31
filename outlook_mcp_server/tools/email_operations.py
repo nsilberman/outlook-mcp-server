@@ -149,7 +149,7 @@ def delete_email_by_number_tool(email_number: int) -> Dict[str, Any]:
         return {"type": "text", "text": f"Error deleting email: {str(e)}"}
 
 
-def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None, html: bool = False) -> Dict[str, Any]:
+def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None, html: bool = False, attachments: Optional[List[str]] = None) -> Dict[str, Any]:
     """Create a draft email without sending it
 
     Args:
@@ -158,6 +158,7 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         body: Main content of the email
         cc_email: Optional CC email address(es) - can be single email or semicolon-separated list
         html: If True, body is treated as HTML (default: False)
+        attachments: Optional list of absolute file paths to attach (e.g. ["C:\\Reports\\report.pdf"])
 
     Returns:
         dict: Response containing confirmation message
@@ -180,7 +181,7 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         if cc_email:
             cc_recipients = [email.strip() for email in cc_email.split(';') if email.strip()]
 
-        result = create_draft(to_recipients, subject, body, cc_recipients, html)
+        result = create_draft(to_recipients, subject, body, cc_recipients, html, attachments)
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error creating draft: {str(e)}"}
