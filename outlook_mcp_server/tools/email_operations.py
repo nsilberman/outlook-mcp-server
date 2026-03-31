@@ -149,7 +149,7 @@ def delete_email_by_number_tool(email_number: int) -> Dict[str, Any]:
         return {"type": "text", "text": f"Error deleting email: {str(e)}"}
 
 
-def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None, html: bool = False, attachments: Optional[List[str]] = None) -> Dict[str, Any]:
+def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None, html: bool = False, attachments: Optional[str] = None) -> Dict[str, Any]:
     """Create a draft email without sending it
 
     Args:
@@ -158,7 +158,7 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         body: Main content of the email
         cc_email: Optional CC email address(es) - can be single email or semicolon-separated list
         html: If True, body is treated as HTML (default: False)
-        attachments: Optional list of absolute file paths to attach (e.g. ["C:\\Reports\\report.pdf"])
+        attachments: Optional file path(s) to attach - semicolon-separated for multiple files (e.g. "C:\\report.pdf;C:\\data.xlsx")
 
     Returns:
         dict: Response containing confirmation message
@@ -181,7 +181,25 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         if cc_email:
             cc_recipients = [email.strip() for email in cc_email.split(';') if email.strip()]
 
-        result = create_draft(to_recipients, subject, body, cc_recipients, html, attachments)
+        # Parse attachments: accept semicolon-separated string or JSON array string
+        attachment_list = None
+        if attachments:
+            if isinstance(attachments, list):
+                attachment_list = attachments
+            elif isinstance(attachments, str):
+                # Try JSON array first (e.g. '["path1", "path2"]')
+                import json
+                try:
+                    parsed = json.loads(attachments)
+                    if isinstance(parsed, list):
+                        attachment_list = [str(p).strip() for p in parsed if str(p).strip()]
+                    else:
+                        attachment_list = [attachments.strip()]
+                except (json.JSONDecodeError, ValueError):
+                    # Fall back to semicolon-separated
+                    attachment_list = [p.strip() for p in attachments.split(';') if p.strip()]
+
+        result = create_draft(to_recipients, subject, body, cc_recipients, html, attachment_list)
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error creating draft: {str(e)}"}
