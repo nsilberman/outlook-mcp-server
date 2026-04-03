@@ -32,6 +32,7 @@ from .viewing_tools import (
 
 from .email_operations import (
     reply_to_email_by_number_tool,
+    create_reply_draft_tool,
     compose_email_tool,
     create_draft_tool,
     move_email_tool,
@@ -66,6 +67,7 @@ __all__ = [
     
     # Email operations
     'reply_to_email_by_number_tool',
+    'create_reply_draft_tool',
     'compose_email_tool',
     'create_draft_tool',
     'move_email_tool',

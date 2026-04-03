@@ -11,9 +11,8 @@ def reply_to_email_by_number_tool(
     reply_text: str,
     to_recipients: Union[str, List[str], None] = None,
     cc_recipients: Union[str, List[str], None] = None,
-    save_as_draft: bool = True,
 ) -> Dict[str, Any]:
-    """Reply to an email with custom recipients if provided
+    """Send a reply to an email immediately. Use create_reply_draft_tool instead to save as draft first.
 
     Args:
         email_number: Email's position in the last listing
@@ -22,7 +21,6 @@ def reply_to_email_by_number_tool(
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
         cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
-        save_as_draft: If True (default), saves as draft instead of sending immediately
 
     Behavior:
         - When both to_recipients and cc_recipients are None:
@@ -34,10 +32,6 @@ def reply_to_email_by_number_tool(
 
     Returns:
         dict: Response containing confirmation message
-        {
-            "type": "text",
-            "text": "Confirmation message here"
-        }
     """
     if not isinstance(email_number, int) or email_number < 1:
         raise ValidationError("Email number must be a positive integer")
@@ -45,10 +39,41 @@ def reply_to_email_by_number_tool(
         raise ValidationError("Reply text must be a non-empty string")
 
     try:
-        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft)
+        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft=False)
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error replying to email: {str(e)}"}
+
+
+def create_reply_draft_tool(
+    email_number: int,
+    reply_text: str,
+    to_recipients: Union[str, List[str], None] = None,
+    cc_recipients: Union[str, List[str], None] = None,
+) -> Dict[str, Any]:
+    """Prepare a reply to an email and save it as a draft (does NOT send). Use reply_to_email_by_number_tool to send immediately.
+
+    Args:
+        email_number: Email's position in the last listing
+        reply_text: Text to prepend to the reply
+        to_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
+                      Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
+        cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
+                      Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
+
+    Returns:
+        dict: Response containing confirmation message
+    """
+    if not isinstance(email_number, int) or email_number < 1:
+        raise ValidationError("Email number must be a positive integer")
+    if not reply_text or not isinstance(reply_text, str):
+        raise ValidationError("Reply text must be a non-empty string")
+
+    try:
+        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft=True)
+        return {"type": "text", "text": result}
+    except Exception as e:
+        return {"type": "text", "text": f"Error creating reply draft: {str(e)}"}
 
 
 def compose_email_tool(recipient_email: str, subject: str, body: str, cc_email: Optional[str] = None) -> Dict[str, Any]:
