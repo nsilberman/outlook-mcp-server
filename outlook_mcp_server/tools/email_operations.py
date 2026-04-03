@@ -7,10 +7,11 @@ from ..backend.validation import ValidationError
 
 
 def reply_to_email_by_number_tool(
-    email_number: int, 
-    reply_text: str, 
-    to_recipients: Union[str, List[str], None] = None, 
-    cc_recipients: Union[str, List[str], None] = None
+    email_number: int,
+    reply_text: str,
+    to_recipients: Union[str, List[str], None] = None,
+    cc_recipients: Union[str, List[str], None] = None,
+    save_as_draft: bool = True,
 ) -> Dict[str, Any]:
     """Reply to an email with custom recipients if provided
 
@@ -21,6 +22,7 @@ def reply_to_email_by_number_tool(
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
         cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
+        save_as_draft: If True (default), saves as draft instead of sending immediately
 
     Behavior:
         - When both to_recipients and cc_recipients are None:
@@ -41,9 +43,9 @@ def reply_to_email_by_number_tool(
         raise ValidationError("Email number must be a positive integer")
     if not reply_text or not isinstance(reply_text, str):
         raise ValidationError("Reply text must be a non-empty string")
-    
+
     try:
-        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients)
+        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft)
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error replying to email: {str(e)}"}

@@ -25,6 +25,7 @@ def reply_to_email_by_number(
     reply_text: str,
     to_recipients: Optional[Union[str, List[str]]] = None,
     cc_recipients: Optional[Union[str, List[str]]] = None,
+    save_as_draft: bool = True,
 ) -> str:
     """
     Reply to an email with custom recipients if provided.
@@ -276,9 +277,14 @@ def reply_to_email_by_number(
                     f"{reply_text_safe}\n\n{'_' * DisplayConstants.SEPARATOR_LINE_LENGTH}\n[Original email content unavailable]"
                 )
 
-            new_mail.Send()
-            logger.info(f"Successfully replied to email #{email_number}")
-            return f"Successfully replied to email #{email_number}"
+            if save_as_draft:
+                new_mail.Save()
+                logger.info(f"Successfully saved reply to email #{email_number} as draft")
+                return f"Reply to email #{email_number} saved as draft"
+            else:
+                new_mail.Send()
+                logger.info(f"Successfully replied to email #{email_number}")
+                return f"Successfully replied to email #{email_number}"
 
         except Exception as e:
             logger.error(f"Error replying to email #{email_number}: {e}")
