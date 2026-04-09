@@ -50,6 +50,7 @@ def create_reply_draft_tool(
     reply_text: str,
     to_recipients: Union[str, List[str], None] = None,
     cc_recipients: Union[str, List[str], None] = None,
+    html: bool = False,
 ) -> Dict[str, Any]:
     """Prepare a reply to an email and save it as a draft (does NOT send). Use reply_to_email_by_number_tool to send immediately.
 
@@ -60,6 +61,7 @@ def create_reply_draft_tool(
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
         cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
+        html: If True, reply_text is treated as HTML (default: False)
 
     Returns:
         dict: Response containing confirmation message
@@ -70,7 +72,7 @@ def create_reply_draft_tool(
         raise ValidationError("Reply text must be a non-empty string")
 
     try:
-        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft=True)
+        result = reply_to_email_by_number(email_number, reply_text, to_recipients, cc_recipients, save_as_draft=True, html=html)
         return {"type": "text", "text": result}
     except Exception as e:
         return {"type": "text", "text": f"Error creating reply draft: {str(e)}"}

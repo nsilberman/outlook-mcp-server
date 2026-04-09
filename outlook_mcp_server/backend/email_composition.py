@@ -26,6 +26,7 @@ def reply_to_email_by_number(
     to_recipients: Optional[Union[str, List[str]]] = None,
     cc_recipients: Optional[Union[str, List[str]]] = None,
     save_as_draft: bool = True,
+    html: bool = False,
 ) -> str:
     """
     Reply to an email with custom recipients if provided.
@@ -35,6 +36,7 @@ def reply_to_email_by_number(
         reply_text: Text to prepend to the reply
         to_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
         cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
+        html: If True, reply_text is treated as HTML (default: False)
 
     Returns:
         str: Success or error message
@@ -242,34 +244,45 @@ def reply_to_email_by_number(
             )
             sent_on = safe_encode_text(str(getattr(email, "SentOn", "Unknown")), "sent_on")
             to_field = safe_encode_text(getattr(email, "To", "Unknown"), "to_field")
-
-            # Build body content
-            body_lines = [
-                reply_text_safe,
-                "",
-                "_" * DisplayConstants.SEPARATOR_LINE_LENGTH,
-                f"From: {sender_name}",
-                f"Sent: {sent_on}",
-                f"To: {to_field}",
-            ]
-
-            # Add CC if present
             original_cc = safe_encode_text(getattr(email, "CC", ""), "original_cc")
-            if original_cc and original_cc.strip():
-                body_lines.append(f"Cc: {original_cc}")
-
-            body_lines.extend([f"Subject: {subject}", ""])
-
-            # Add the original email content
-            original_body = safe_encode_text(getattr(email, "Body", ""), "original_body")
-            body_lines.append(original_body)
-
-            # Join with proper line endings
-            body_content = "\n".join(body_lines)
 
             # Set the body of the new email
             try:
-                new_mail.Body = body_content
+                if html:
+                    # Build HTML reply: reply text on top, then original HTML email below
+                    original_html = getattr(email, "HTMLBody", "") or ""
+                    cc_header = f"<b>Cc:</b> {original_cc}<br>" if original_cc and original_cc.strip() else ""
+                    header_html = (
+                        f"<div>"
+                        f"<hr>"
+                        f"<b>From:</b> {sender_name}<br>"
+                        f"<b>Sent:</b> {sent_on}<br>"
+                        f"<b>To:</b> {to_field}<br>"
+                        f"{cc_header}"
+                        f"<b>Subject:</b> {subject}<br>"
+                        f"</div>"
+                    )
+                    if original_html:
+                        body_content = f"{reply_text_safe}{header_html}{original_html}"
+                    else:
+                        original_body = safe_encode_text(getattr(email, "Body", ""), "original_body")
+                        body_content = f"{reply_text_safe}{header_html}<pre>{original_body}</pre>"
+                    new_mail.HTMLBody = body_content
+                else:
+                    body_lines = [
+                        reply_text_safe,
+                        "",
+                        "_" * DisplayConstants.SEPARATOR_LINE_LENGTH,
+                        f"From: {sender_name}",
+                        f"Sent: {sent_on}",
+                        f"To: {to_field}",
+                    ]
+                    if original_cc and original_cc.strip():
+                        body_lines.append(f"Cc: {original_cc}")
+                    body_lines.extend([f"Subject: {subject}", ""])
+                    original_body = safe_encode_text(getattr(email, "Body", ""), "original_body")
+                    body_lines.append(original_body)
+                    new_mail.Body = "\n".join(body_lines)
             except Exception as e:
                 logger.warning(f"Failed to set email body, using simplified version: {e}")
                 # Fallback to simple body
