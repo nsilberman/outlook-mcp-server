@@ -6,14 +6,14 @@ from typing import Any, Callable, Dict, List, Optional, Union
 # Local application imports
 from .logging_config import get_logger
 from .outlook_session.session_manager import OutlookSessionManager
-from .shared import email_cache, email_cache_order
+from .shared import email_cache, email_cache_order, get_email_from_cache
 from .utils import safe_encode_text, normalize_email_address
 from .validation import (
     DisplayConstants,
     OutlookConstants,
     ValidationError,
     validate_cache_available,
-    validate_email_number
+    validate_email_identifier,
 )
 from .validators import EmailComposeParams, EmailReplyParams
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def reply_to_email_by_number(
-    email_number: int,
+    email_number: Union[int, str],
     reply_text: str,
     to_recipients: Optional[Union[str, List[str]]] = None,
     cc_recipients: Optional[Union[str, List[str]]] = None,
@@ -32,7 +32,7 @@ def reply_to_email_by_number(
     Reply to an email with custom recipients if provided.
 
     Args:
-        email_number: Email's position in the last listing
+        email_number: Email's position in the last listing (int) or stable email ID (str)
         reply_text: Text to prepend to the reply
         to_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
         cc_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
@@ -60,20 +60,19 @@ def reply_to_email_by_number(
 
     try:
         validate_cache_available(len(email_cache_order))
-        validate_email_number(email_number, len(email_cache_order))
+        validate_email_identifier(email_number, len(email_cache_order))
     except ValidationError as e:
         logger.error(f"Validation error in reply_to_email_by_number: {e}")
         raise ValueError(f"Invalid parameters: {e}")
 
-    # Get the entry_id from the cache order
-    entry_id = email_cache_order[email_number - 1]
-    if not entry_id:
-        raise ValueError(f"Email #{email_number} has no entry ID")
-
-    # Get the cached email data
-    cached_email = email_cache.get(entry_id)
+    # Resolve email identifier to cached data
+    cached_email = get_email_from_cache(email_number)
     if not cached_email:
-        raise ValueError(f"Email #{email_number} data not found in cache")
+        raise ValueError(f"Email {email_number} not found in cache")
+
+    entry_id = cached_email.get("entry_id") or cached_email.get("id")
+    if not entry_id:
+        raise ValueError(f"Email {email_number} has no entry ID")
 
     with OutlookSessionManager() as session:
         try:

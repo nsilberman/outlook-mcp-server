@@ -8,16 +8,29 @@ managing email policies, and retrieving email details.
 # Type imports
 import os
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Local application imports
 from ..logging_config import get_logger
 from ..outlook_session.session_manager import OutlookSessionManager
-from ..shared import email_cache, email_cache_order
+from ..shared import email_cache, email_cache_order, get_email_from_cache
 from ..validators import EmailNumberParam
 from .exceptions import InvalidParameterError, OperationFailedError
 
 logger = get_logger(__name__)
+
+
+def _resolve_entry_id(email_identifier: Union[int, str]) -> Optional[str]:
+    """Resolve an email identifier (position int or entry_id str) to an entry_id.
+
+    Returns the entry_id string, or None if not found.
+    """
+    if isinstance(email_identifier, str):
+        return email_identifier if email_identifier in email_cache else None
+    # int path
+    if not email_cache_order or email_identifier < 1 or email_identifier > len(email_cache_order):
+        return None
+    return email_cache_order[email_identifier - 1] or None
 
 
 class EmailOperations:
@@ -63,36 +76,24 @@ class EmailOperations:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-    def move_email_to_folder(self, email_number: int, target_folder_name: str) -> str:
+    def move_email_to_folder(self, email_identifier: Union[int, str], target_folder_name: str) -> str:
         """
         Move an email to a different folder.
-        
+
         Args:
-            email_number: The number of the email in the cache (1-based)
+            email_identifier: Position in cache (int, 1-based) or stable email ID (str)
             target_folder_name: Name of the target folder
-        
+
         Returns:
             Success message or error message
         """
-        try:
-            # Validate input parameters
-            if email_number < 1:
-                return f"Error: Invalid email number: {email_number}"
-            if not target_folder_name or not target_folder_name.strip():
-                return f"Error: Invalid folder name: {target_folder_name}"
-        except Exception as e:
-            logger.error(f"Validation error in move_email_to_folder: {e}")
-            return f"Error: Invalid parameters: {e}"
+        if not target_folder_name or not target_folder_name.strip():
+            return f"Error: Invalid folder name: {target_folder_name}"
 
         try:
-            # Get email from cache using the correct logic
-            if not email_cache_order or email_number > len(email_cache_order):
-                return f"Error: Email #{email_number} not found in cache"
-            
-            # Get the entry_id from the cache order
-            entry_id = email_cache_order[email_number - 1]
+            entry_id = _resolve_entry_id(email_identifier)
             if not entry_id:
-                return f"Error: Email #{email_number} has no entry ID"
+                return f"Error: Email {email_identifier} not found in cache"
             
             with OutlookSessionManager() as session:
                 # Get the email item
@@ -114,34 +115,26 @@ class EmailOperations:
                     if entry_id in email_cache_order:
                         email_cache_order.remove(entry_id)
                 
-                logger.info(f"Moved email #{email_number} to '{target_folder_name}'")
+                logger.info(f"Moved email {email_identifier} to '{target_folder_name}'")
                 return f"Email moved successfully to '{target_folder_name}'"
-                
+
         except Exception as e:
             error_msg = f"Error moving email: {e}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
 
-    def delete_email_by_number(self, email_number: int) -> str:
+    def delete_email_by_number(self, email_identifier: Union[int, str]) -> str:
         """
         Delete an email by moving it to the Deleted Items folder.
-        
+
         Args:
-            email_number: The number of the email in the cache (1-based)
-        
+            email_identifier: Position in cache (int, 1-based) or stable email ID (str)
+
         Returns:
             Success message or error message
         """
         try:
-            # Validate input parameters
-            if email_number < 1:
-                return f"Error: Invalid email number: {email_number}"
-        except Exception as e:
-            logger.error(f"Validation error in delete_email_by_number: {e}")
-            return f"Error: Invalid parameters: {e}"
-
-        try:
-            return self.move_email_to_folder(email_number, "Deleted Items")
+            return self.move_email_to_folder(email_identifier, "Deleted Items")
             
         except Exception as e:
             error_msg = f"Error deleting email: {e}"
@@ -156,38 +149,32 @@ def get_email_by_number(email_number: int) -> Dict[str, Any]:
         return email_ops.get_email_by_number(email_number)
 
 
-def move_email_to_folder(email_number: int, target_folder_name: str) -> str:
+def move_email_to_folder(email_identifier: Union[int, str], target_folder_name: str) -> str:
     """Move an email to a different folder."""
     with OutlookSessionManager() as session_manager:
         email_ops = EmailOperations(session_manager)
-        return email_ops.move_email_to_folder(email_number, target_folder_name)
+        return email_ops.move_email_to_folder(email_identifier, target_folder_name)
 
 
-def delete_email_by_number(email_number: int) -> str:
+def delete_email_by_number(email_identifier: Union[int, str]) -> str:
     """Delete an email by moving it to the Deleted Items folder."""
     with OutlookSessionManager() as session_manager:
         email_ops = EmailOperations(session_manager)
-        return email_ops.delete_email_by_number(email_number)
+        return email_ops.delete_email_by_number(email_identifier)
 
 
-def get_email_categories(email_number: int) -> str:
+def get_email_categories(email_identifier: Union[int, str]) -> str:
     """Get the categories assigned to an email.
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_identifier: Position in cache (int, 1-based) or stable email ID (str)
 
     Returns:
         Comma-separated category names, or a message if none assigned
     """
-    if email_number < 1:
-        return f"Error: Invalid email number: {email_number}"
-
-    if not email_cache_order or email_number > len(email_cache_order):
-        return f"Error: Email #{email_number} not found in cache"
-
-    entry_id = email_cache_order[email_number - 1]
+    entry_id = _resolve_entry_id(email_identifier)
     if not entry_id:
-        return f"Error: Email #{email_number} has no entry ID"
+        return f"Error: Email {email_identifier} not found in cache"
 
     with OutlookSessionManager() as session:
         try:
@@ -199,7 +186,7 @@ def get_email_categories(email_number: int) -> str:
             if not categories or not categories.strip():
                 return "No categories assigned"
 
-            logger.info(f"Categories for email #{email_number}: {categories}")
+            logger.info(f"Categories for email {email_identifier}: {categories}")
             return categories
         except Exception as e:
             error_msg = f"Error getting categories: {e}"
@@ -207,25 +194,19 @@ def get_email_categories(email_number: int) -> str:
             return f"Error: {error_msg}"
 
 
-def set_email_categories(email_number: int, categories: str) -> str:
+def set_email_categories(email_identifier: Union[int, str], categories: str) -> str:
     """Set or replace the categories on an email.
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_identifier: Position in cache (int, 1-based) or stable email ID (str)
         categories: Comma-separated category names (empty string to clear)
 
     Returns:
         Success or error message
     """
-    if email_number < 1:
-        return f"Error: Invalid email number: {email_number}"
-
-    if not email_cache_order or email_number > len(email_cache_order):
-        return f"Error: Email #{email_number} not found in cache"
-
-    entry_id = email_cache_order[email_number - 1]
+    entry_id = _resolve_entry_id(email_identifier)
     if not entry_id:
-        return f"Error: Email #{email_number} has no entry ID"
+        return f"Error: Email {email_identifier} not found in cache"
 
     with OutlookSessionManager() as session:
         try:
@@ -237,10 +218,10 @@ def set_email_categories(email_number: int, categories: str) -> str:
             item.Save()
 
             if categories.strip():
-                logger.info(f"Set categories for email #{email_number}: {categories}")
+                logger.info(f"Set categories for email {email_identifier}: {categories}")
                 return f"Categories set to: {categories}"
             else:
-                logger.info(f"Cleared categories for email #{email_number}")
+                logger.info(f"Cleared categories for email {email_identifier}")
                 return "Categories cleared"
         except Exception as e:
             error_msg = f"Error setting categories: {e}"
@@ -303,26 +284,20 @@ def _count_pages(file_path: str) -> Optional[int]:
     return None
 
 
-def save_attachment(email_number: int, attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
+def save_attachment(email_identifier: Union[int, str], attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
     """Save an attachment from a cached email to disk.
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_identifier: Position in cache (int, 1-based) or stable email ID (str)
         attachment_index: 1-based index of the attachment on the email
         destination_dir: Directory to save into (defaults to system temp dir)
 
     Returns:
         Dict with keys: success, file_path, file_name, size, error
     """
-    if email_number < 1:
-        return {"success": False, "error": f"Invalid email number: {email_number}"}
-
-    if not email_cache_order or email_number > len(email_cache_order):
-        return {"success": False, "error": f"Email #{email_number} not found in cache"}
-
-    entry_id = email_cache_order[email_number - 1]
+    entry_id = _resolve_entry_id(email_identifier)
     if not entry_id:
-        return {"success": False, "error": f"Email #{email_number} has no entry ID"}
+        return {"success": False, "error": f"Email {email_identifier} not found in cache"}
 
     save_dir = destination_dir or tempfile.gettempdir()
 
@@ -341,7 +316,7 @@ def save_attachment(email_number: int, attachment_index: int, destination_dir: O
             attachment.SaveAsFile(file_path)
 
             size = os.path.getsize(file_path)
-            logger.info(f"Saved attachment '{file_name}' from email #{email_number} to {file_path}")
+            logger.info(f"Saved attachment '{file_name}' from email {email_identifier} to {file_path}")
             return {"success": True, "file_path": file_path, "file_name": file_name, "size": size}
         except Exception as e:
             error_msg = f"Error saving attachment: {e}"
@@ -349,26 +324,20 @@ def save_attachment(email_number: int, attachment_index: int, destination_dir: O
             return {"success": False, "error": error_msg}
 
 
-def get_attachment_info(email_number: int) -> Dict[str, Any]:
+def get_attachment_info(email_identifier: Union[int, str]) -> Dict[str, Any]:
     """Get detailed info about all attachments on a cached email, including page counts.
 
     Saves each attachment to a temp file, counts pages, then cleans up.
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_identifier: Position in cache (int, 1-based) or stable email ID (str)
 
     Returns:
         Dict with keys: success, attachments (list of dicts with name, size, pages), error
     """
-    if email_number < 1:
-        return {"success": False, "error": f"Invalid email number: {email_number}"}
-
-    if not email_cache_order or email_number > len(email_cache_order):
-        return {"success": False, "error": f"Email #{email_number} not found in cache"}
-
-    entry_id = email_cache_order[email_number - 1]
+    entry_id = _resolve_entry_id(email_identifier)
     if not entry_id:
-        return {"success": False, "error": f"Email #{email_number} has no entry ID"}
+        return {"success": False, "error": f"Email {email_identifier} not found in cache"}
 
     with OutlookSessionManager() as session:
         try:
@@ -408,7 +377,7 @@ def get_attachment_info(email_number: int) -> Dict[str, Any]:
                     info["pages"] = pages
                 results.append(info)
 
-            logger.info(f"Extracted info for {len(results)} attachments on email #{email_number}")
+            logger.info(f"Extracted info for {len(results)} attachments on email {email_identifier}")
             return {"success": True, "attachments": results}
         except Exception as e:
             error_msg = f"Error getting attachment info: {e}"

@@ -3,11 +3,12 @@
 from typing import Dict, Any, Union, List, Optional
 from ..backend.email_composition import reply_to_email_by_number, compose_email, create_draft
 from ..backend.outlook_session import OutlookSessionManager
-from ..backend.validation import ValidationError
+from ..backend.validation import ValidationError, validate_email_identifier
+from ..backend.shared import email_cache_order
 
 
 def reply_to_email_by_number_tool(
-    email_number: int,
+    email_number: Union[int, str],
     reply_text: str,
     to_recipients: Union[str, List[str], None] = None,
     cc_recipients: Union[str, List[str], None] = None,
@@ -15,7 +16,8 @@ def reply_to_email_by_number_tool(
     """Send a reply to an email immediately. Use create_reply_draft_tool instead to save as draft first.
 
     Args:
-        email_number: Email's position in the last listing
+        email_number: Email's position in the last listing (int) or stable email ID (str).
+                      Prefer the stable ID from view_email_cache_tool — it survives across searches.
         reply_text: Text to prepend to the reply
         to_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
@@ -33,8 +35,7 @@ def reply_to_email_by_number_tool(
     Returns:
         dict: Response containing confirmation message
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
     if not reply_text or not isinstance(reply_text, str):
         raise ValidationError("Reply text must be a non-empty string")
 
@@ -46,7 +47,7 @@ def reply_to_email_by_number_tool(
 
 
 def create_reply_draft_tool(
-    email_number: int,
+    email_number: Union[int, str],
     reply_text: str,
     to_recipients: Union[str, List[str], None] = None,
     cc_recipients: Union[str, List[str], None] = None,
@@ -55,7 +56,8 @@ def create_reply_draft_tool(
     """Prepare a reply to an email and save it as a draft (does NOT send). Use reply_to_email_by_number_tool to send immediately.
 
     Args:
-        email_number: Email's position in the last listing
+        email_number: Email's position in the last listing (int) or stable email ID (str).
+                      Prefer the stable ID from view_email_cache_tool — it survives across searches.
         reply_text: Text to prepend to the reply
         to_recipients: Either a single email string OR a list of email strings (None preserves original recipients)
                       Examples: "user@company.com" OR ["user@company.com", "boss@company.com"]
@@ -66,8 +68,7 @@ def create_reply_draft_tool(
     Returns:
         dict: Response containing confirmation message
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
     if not reply_text or not isinstance(reply_text, str):
         raise ValidationError("Reply text must be a non-empty string")
 
@@ -114,11 +115,11 @@ def compose_email_tool(recipient_email: str, subject: str, body: str, cc_email: 
         return {"type": "text", "text": f"Error composing email: {str(e)}"}
 
 
-def move_email_tool(email_number: int, target_folder_name: str) -> Dict[str, Any]:
+def move_email_tool(email_number: Union[int, str], target_folder_name: str) -> Dict[str, Any]:
     """Move an email to the specified folder.
 
     Args:
-        email_number: The number of the email in the cache to move (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
         target_folder_name: Name or path of the target folder (supports nested paths like "user@company.com/Inbox/SubFolder1/SubFolder2")
 
     Returns:
@@ -130,13 +131,12 @@ def move_email_tool(email_number: int, target_folder_name: str) -> Dict[str, Any
 
     Note:
         Requires emails to be loaded first via list_recent_emails or search_emails.
-        After moving, the cache will be cleared to reflect the new email positions.
-        
+        After moving, the email is removed from cache.
+
         IMPORTANT: Target folder paths must include the email address as the root folder.
         Use format: "user@company.com/Inbox/SubFolder" not just "Inbox/SubFolder"
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
     if not target_folder_name or not isinstance(target_folder_name, str):
         raise ValidationError("Target folder name must be a non-empty string")
 
@@ -149,11 +149,11 @@ def move_email_tool(email_number: int, target_folder_name: str) -> Dict[str, Any
         return {"type": "text", "text": f"Error moving email: {str(e)}"}
 
 
-def delete_email_by_number_tool(email_number: int) -> Dict[str, Any]:
+def delete_email_by_number_tool(email_number: Union[int, str]) -> Dict[str, Any]:
     """Move an email to the Deleted Items folder.
 
     Args:
-        email_number: The number of the email in the cache to delete (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
 
     Returns:
         dict: Response containing confirmation message
@@ -166,8 +166,7 @@ def delete_email_by_number_tool(email_number: int) -> Dict[str, Any]:
         Requires emails to be loaded first via list_recent_emails or search_emails.
         This tool moves the email to the Deleted Items folder instead of permanently deleting it.
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
 
     try:
         # Use direct email operations instead of session manager wrapper
@@ -234,11 +233,11 @@ def create_draft_tool(recipient_email: str, subject: str, body: str, cc_email: O
         return {"type": "text", "text": f"Error creating draft: {str(e)}"}
 
 
-def get_email_categories_tool(email_number: int) -> Dict[str, Any]:
+def get_email_categories_tool(email_number: Union[int, str]) -> Dict[str, Any]:
     """Get the categories assigned to an email
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
 
     Returns:
         dict: Response containing the comma-separated category names
@@ -250,8 +249,7 @@ def get_email_categories_tool(email_number: int) -> Dict[str, Any]:
     Note:
         Requires emails to be loaded first via list_recent_emails or search_emails.
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
 
     try:
         from ..backend.outlook_session.email_operations import get_email_categories
@@ -261,11 +259,11 @@ def get_email_categories_tool(email_number: int) -> Dict[str, Any]:
         return {"type": "text", "text": f"Error getting categories: {str(e)}"}
 
 
-def set_email_categories_tool(email_number: int, categories: str) -> Dict[str, Any]:
+def set_email_categories_tool(email_number: Union[int, str], categories: str) -> Dict[str, Any]:
     """Set or replace the categories on an email
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
         categories: Comma-separated category names to assign (e.g. "Important, Follow-up"). Use empty string to clear all categories.
 
     Returns:
@@ -280,8 +278,7 @@ def set_email_categories_tool(email_number: int, categories: str) -> Dict[str, A
         This replaces all existing categories. To add a category, first read existing
         categories with get_email_categories_tool, then include them in the new value.
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
     if not isinstance(categories, str):
         raise ValidationError("Categories must be a string")
 
@@ -293,7 +290,7 @@ def set_email_categories_tool(email_number: int, categories: str) -> Dict[str, A
         return {"type": "text", "text": f"Error setting categories: {str(e)}"}
 
 
-def get_attachment_info_tool(email_number: int) -> Dict[str, Any]:
+def get_attachment_info_tool(email_number: Union[int, str]) -> Dict[str, Any]:
     """Get detailed information about all attachments on an email, including page counts
 
     Returns each attachment's name, size, index, and page count when available.
@@ -301,7 +298,7 @@ def get_attachment_info_tool(email_number: int) -> Dict[str, Any]:
     Requires optional dependencies: pypdf, python-pptx, python-docx.
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
 
     Returns:
         dict: Response containing attachment details as JSON
@@ -318,8 +315,7 @@ def get_attachment_info_tool(email_number: int) -> Dict[str, Any]:
     Note:
         Requires emails to be loaded first via list_recent_emails or search_emails.
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
 
     try:
         from ..backend.outlook_session.email_operations import get_attachment_info
@@ -331,11 +327,11 @@ def get_attachment_info_tool(email_number: int) -> Dict[str, Any]:
         return {"type": "text", "text": f"Error getting attachment info: {str(e)}"}
 
 
-def save_attachment_tool(email_number: int, attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
+def save_attachment_tool(email_number: Union[int, str], attachment_index: int, destination_dir: Optional[str] = None) -> Dict[str, Any]:
     """Save an attachment from an email to disk
 
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_number: Email's position in the cache (int, 1-based) or stable email ID (str)
         attachment_index: 1-based index of the attachment (use get_attachment_info_tool to see indices)
         destination_dir: Optional directory path to save the file (defaults to system temp directory)
 
@@ -349,8 +345,7 @@ def save_attachment_tool(email_number: int, attachment_index: int, destination_d
     Note:
         Requires emails to be loaded first via list_recent_emails or search_emails.
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        raise ValidationError("Email number must be a positive integer")
+    validate_email_identifier(email_number, len(email_cache_order))
     if not isinstance(attachment_index, int) or attachment_index < 1:
         raise ValidationError("Attachment index must be a positive integer")
 

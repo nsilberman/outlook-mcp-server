@@ -1,13 +1,13 @@
 """Simplified email data extraction with single comprehensive mode."""
 
 # Type imports
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 # Local application imports
 from .email_utils import _format_recipient_for_display
 from .logging_config import get_logger
 from .outlook_session.session_manager import OutlookSessionManager
-from .shared import email_cache, email_cache_order
+from .shared import email_cache, email_cache_order, get_email_from_cache
 from .utils import OutlookItemClass, safe_encode_text
 from .validation import (
     AttachmentType,
@@ -227,34 +227,27 @@ def create_basic_email_response(email: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_email_by_number_unified(email_number: int, mode: str = "basic", include_attachments: bool = True, embed_images: bool = True) -> Optional[Dict[str, Any]]:
-    """Get email by number from cache with unified interface.
-    
+def get_email_by_number_unified(email_number: Union[int, str], mode: str = "basic", include_attachments: bool = True, embed_images: bool = True) -> Optional[Dict[str, Any]]:
+    """Get email by number or stable ID from cache with unified interface.
+
     Args:
-        email_number: The number of the email in the cache (1-based)
+        email_number: Position in cache (int, 1-based) or stable email ID (str)
         mode: Retrieval mode - "basic", "enhanced", "lazy"
         include_attachments: Whether to include attachment content
         embed_images: Whether to embed inline images
-        
+
     Returns:
         Email data dictionary or None if not found
     """
-    if not isinstance(email_number, int) or email_number < 1:
-        return None
-        
     # Check if cache is loaded
     if not email_cache or not email_cache_order:
         return None
-        
-    # Validate email number
-    if email_number > len(email_cache_order):
+
+    # Resolve identifier via get_email_from_cache (handles int and str)
+    try:
+        email_data = get_email_from_cache(email_number)
+    except (ValueError, IndexError):
         return None
-        
-    # Get email ID from cache order
-    email_id = email_cache_order[email_number - 1]
-    
-    # Get email from cache
-    email_data = email_cache.get(email_id)
     if not email_data:
         return None
         
