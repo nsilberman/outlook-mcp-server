@@ -11,6 +11,7 @@ from ..backend.validation import (
     ValidationError,
     validate_cache_available,
     validate_days_parameter,
+    validate_email_identifier,
     validate_email_number,
     validate_folder_name,
     validate_page_parameter
@@ -20,6 +21,11 @@ from ..backend.validation import (
 def view_email_cache_tool(page: int = 1) -> Dict[str, Any]:
     """View comprehensive information of cached emails (5 emails per page).
     Shows Subject, From, To, CC, Received, Status, and Attachments.
+
+    Each email includes a stable "id" (entry_id) that persists across searches.
+    Prefer using "id" over "number" when referencing emails in subsequent tool
+    calls (reply, move, delete, etc.), because "number" can shift after a new
+    search while "id" always points to the same email.
 
     Args:
         page: Page number to view (1-based, each page contains 5 emails)
@@ -35,6 +41,7 @@ def view_email_cache_tool(page: int = 1) -> Dict[str, Any]:
                 "emails": [
                     {
                         "number": 1,
+                        "id": "entry_id_string",
                         "subject": "Email Subject",
                         "from": "Sender Name",
                         "to": "Recipient Name",
@@ -197,6 +204,7 @@ def view_email_cache_tool(page: int = 1) -> Dict[str, Any]:
                 # Store embedded images count directly
                 page_emails.append({
                     "number": i + 1,
+                    "id": email_id,
                     "subject": email_data.get("subject", "No Subject"),
                     "from": sender_name,
                     "to": to_display,
@@ -228,23 +236,23 @@ def view_email_cache_tool(page: int = 1) -> Dict[str, Any]:
         }
 
 
-def get_email_by_number_tool(email_number: int, mode: str = "basic", include_attachments: bool = True, embed_images: bool = True) -> Dict[str, Any]:
-    """Get email content by cache number with 3 retrieval modes.
-    
+def get_email_by_number_tool(email_number: Union[int, str], mode: str = "basic", include_attachments: bool = True, embed_images: bool = True) -> Dict[str, Any]:
+    """Get email content by cache number or stable email ID with 3 retrieval modes.
+
     Mode Selection Guide:
     - "basic": Full text content without embedded images and attachments - use for text-focused viewing
-    - "enhanced": Full content + complete thread + HTML + attachments - use for complete analysis  
+    - "enhanced": Full content + complete thread + HTML + attachments - use for complete analysis
     - "lazy": Auto-adapts cached vs live data - use when unsure
-    
+
     Email Thread Handling:
     - "basic": No conversation threads (focus on individual email content)
     - "enhanced": Shows complete conversation thread
     - "lazy": Auto-adaptive thread handling
-    
+
     Requires emails to be loaded first via list_recent_emails or search_emails.
-    
+
     Args:
-        email_number: Position in cache (1-based)
+        email_number: Position in cache (int, 1-based) or stable email ID (str)
         mode: "basic" (text-only), "enhanced" (complete), "lazy" (adaptive)
         include_attachments: Include file content (enhanced mode only)
         embed_images: Embed inline images as data URIs (enhanced mode only)
@@ -252,16 +260,16 @@ def get_email_by_number_tool(email_number: int, mode: str = "basic", include_att
     Returns:
         dict: Response containing email details based on requested mode
         {
-            "type": "text", 
+            "type": "text",
             "text": "Formatted email content"
         }
 
     Raises:
-        ValueError: If email number is invalid or no emails are loaded
+        ValueError: If email identifier is invalid or no emails are loaded
         RuntimeError: If cache contains invalid data
     """
     try:
-        validate_email_number(email_number, len(email_cache_order))
+        validate_email_identifier(email_number, len(email_cache_order))
     except ValidationError as e:
         raise ValidationError(str(e))
     

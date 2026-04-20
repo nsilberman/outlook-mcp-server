@@ -44,7 +44,7 @@ class EmailListParams(BaseModel):
 class EmailReplyParams(BaseModel):
     """Parameters for replying to an email"""
 
-    email_number: int = Field(..., ge=1, description="Email's position in cache")
+    email_number: Union[int, str] = Field(..., description="Email's position in cache (int) or stable email ID (str)")
     reply_text: str = Field(..., min_length=1, description="Reply text content")
     to_recipients: Optional[Union[str, List[str]]] = Field(
         default=None, description="To recipients (None preserves original)"
@@ -151,6 +151,6 @@ class PaginationParams(BaseModel):
 
 
 class EmailNumberParam(BaseModel):
-    """Parameter for operations requiring an email number"""
+    """Parameter for operations requiring an email identifier"""
 
-    email_number: int = Field(..., ge=1, description="Email number in cache")
+    email_number: Union[int, str] = Field(..., description="Email position in cache (int) or stable email ID (str)")

@@ -433,29 +433,25 @@ def extract_email_info(item) -> Dict[str, Any]:
 
 def unified_cache_load_workflow(emails_data: List[Dict[str, Any]], operation_name: str = "cache_operation") -> bool:
     """
-    Optimized unified cache loading workflow for all email tools.
-    
-    Implements the improved 3-step cache workflow with performance optimizations:
-    1. Clear both memory and disk cache
-    2. Load fresh data into memory (optimized batch processing)
-    3. Save to disk (optimized for small datasets)
-    
+    Accumulative cache loading workflow for all email tools.
+
+    Merges new results into the existing cache (no clearing):
+    1. Add/update emails in memory (duplicates handled by add_email_to_cache)
+    2. Save to disk for persistence
+
     Args:
         emails_data: List of email dictionaries to load into cache
         operation_name: Name of the operation for logging purposes
-        
+
     Returns:
         bool: True if cache loading was successful, False otherwise
     """
     try:
-        from ..shared import clear_email_cache, add_email_to_cache, immediate_save_cache
-        
+        from ..shared import add_email_to_cache, immediate_save_cache
+
         # Minimal logging for performance
         if len(emails_data) > 100:
             logger.info(f"Starting cache workflow for {operation_name} with {len(emails_data)} emails")
-        
-        # Step 1: Clear both memory and disk cache for fresh start
-        clear_email_cache()
         
         # Step 2: Load fresh data into memory with batch optimization
         emails_loaded = 0

@@ -244,6 +244,28 @@ def validate_email_number(email_number: int, cache_size: int) -> int:
     return email_number
 
 
+def validate_email_identifier(email_identifier: Union[int, str], cache_size: int) -> Union[int, str]:
+    """Validate an email identifier (position number or entry_id string).
+
+    Args:
+        email_identifier: Either a 1-based position (int) or an entry_id (str)
+        cache_size: Current cache size
+
+    Returns:
+        The validated identifier
+
+    Raises:
+        ValidationError: If the identifier is invalid
+    """
+    if isinstance(email_identifier, int):
+        return validate_email_number(email_identifier, cache_size)
+    if isinstance(email_identifier, str):
+        if not email_identifier.strip():
+            raise ValidationError("Email ID must be a non-empty string")
+        return email_identifier
+    raise ValidationError("Email identifier must be an integer (position) or a string (entry_id)")
+
+
 def validate_page_parameter(page: int, total_pages: int) -> int:
     """Validate page parameter.
 
